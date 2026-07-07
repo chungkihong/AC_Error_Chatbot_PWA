@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AC 에러코드 챗봇</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#3c3c3c">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Malgun Gothic', '맑은 고딕', sans-serif;
+            background: #b2c7d9;
+            height: 100vh; display: flex; justify-content: center; align-items: center; overflow: hidden;
+        }
+        .chat-container {
+            width: 100%; max-width: 520px; height: 100vh; max-height: 100vh;
+            background: #abcfe4; display: flex; flex-direction: column;
+            position: relative; overflow: hidden;
+        }
+        @media (min-width: 600px) { .chat-container { height: 90vh; max-height: 800px; border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.2); } }
+
+        /* Header - KakaoTalk Style */
+        .chat-header {
+            background: #3c3c3c; padding: 12px 16px;
+            display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+            border-bottom: 1px solid #2a2a2a;
+        }
+        .header-back { color: #fff; font-size: 18px; cursor: pointer; padding: 4px; }
+        .header-profile {
+            width: 36px; height: 36px; border-radius: 12px; overflow: hidden;
+            background: #ffe834; display: flex; align-items: center; justify-content: center;
+            font-size: 20px; flex-shrink: 0;
+        }
+        .header-info { flex: 1; }
+        .header-info h1 { color: #fff; font-size: 15px; font-weight: 600; }
+        .header-info p { color: rgba(255,255,255,0.6); font-size: 11px; margin-top: 1px; }
+        .header-actions { display: flex; gap: 16px; color: #fff; font-size: 18px; }
+        .header-actions span { cursor: pointer; opacity: 0.8; }
+        .header-actions span:hover { opacity: 1; }
+        .online-dot { width: 6px; height: 6px; background: #4cd964; border-radius: 50%; display: inline-block; margin-right: 4px; }
+
+        /* Messages Area */
+        .chat-messages {
+            flex: 1; overflow-y: auto; padding: 16px 16px; display: flex;
+            flex-direction: column; gap: 4px; scroll-behavior: smooth;
+        }
+        .chat-messages::-webkit-scrollbar { width: 4px; }
+        .chat-messages::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 4px; }
+
+        /* Date Divider */
+        .date-divider {
+            text-align: center; padding: 12px 0 8px;
+        }
+        .date-divider span {
+            background: rgba(0,0,0,0.12); color: #fff; font-size: 11px;
+            padding: 4px 10px; border-radius: 12px; font-weight: 500;
+        }
+
+        /* Message Bubbles - KakaoTalk Style */
+        .message-row { display: flex; gap: 6px; max-width: 75%; animation: msgIn 0.2s ease-out; }
+        @keyframes msgIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+        .message-row.bot { align-self: flex-start; }
+        .message-row.user { align-self: flex-end; }
+
+        .msg-profile {
+            width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center; font-size: 20px;
+            align-self: flex-end;
+        }
+        .message-row.bot .msg-profile { background: #ffe834; }
+
+        .msg-bubble-wrap { display: flex; flex-direction: column; gap: 2px; }
+        .msg-sender { font-size: 11px; color: #555; font-weight: 600; margin-bottom: 2px; padding-left: 2px; }
+        .msg-bubble-row { display: flex; align-items: flex-end; gap: 4px; }
+
+        .msg-bubble {
+            padding: 10px 14px; font-size: 14px; line-height: 1.55; word-break: break-word;
+            position: relative;
+        }
+        .message-row.bot .msg-bubble {
+            background: #fff; color: #222; border-radius: 2px 16px 16px 16px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+        }
+        .message-row.user .msg-bubble {
+            background: #ffe834; color: #222; border-radius: 16px 2px 16px 16px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+        }
+
+        .msg-time { font-size: 10px; color: #888; white-space: nowrap; align-self: flex-end; padding-bottom: 2px; }
+
+        /* Error Code Card */
+        .error-card {
+            background: #f8f8f8; border: 1px solid #e8e8e8; border-radius: 10px;
+            padding: 14px; margin-top: 8px; width: 100%;
+        }
+        .error-code-badge {
+            display: inline-block; background: #3c3c3c; color: #ffe834;
+            padding: 4px 12px; border-radius: 6px; font-size: 13px; font-weight: 700; margin-bottom: 10px;
+        }
+        .error-section { margin-bottom: 10px; }
+        .error-section:last-child { margin-bottom: 0; }
+        .error-section-title { font-size: 12px; font-weight: 700; color: #3c3c3c; margin-bottom: 4px; display: flex; align-items: center; gap: 4px; }
+        .error-section-content { font-size: 12.5px; color: #555; line-height: 1.65; }
+        .error-section-content ul { list-style: none; padding: 0; }
+        .error-section-content ul li { padding: 2px 0 2px 12px; position: relative; }
+        .error-section-content ul li::before { content: '·'; color: #3c3c3c; position: absolute; left: 0; font-weight: bold; }
+
+        /* Quick Tags */
+        .quick-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+        .quick-tag {
+            background: #fff; border: 1px solid #ddd; color: #3c3c3c;
+            padding: 5px 12px; border-radius: 16px; font-size: 12px; cursor: pointer;
+            transition: all 0.15s; font-weight: 500;
+        }
+        .quick-tag:hover { background: #ffe834; border-color: #e6d620; }
+        .quick-tag:active { transform: scale(0.96); }
+
+        /* Input Area - KakaoTalk Style */
+        .chat-input-area {
+            padding: 8px 12px; background: #f0f0f0; flex-shrink: 0;
+            border-top: 1px solid #ddd;
+        }
+        .input-wrapper { display: flex; gap: 6px; align-items: flex-end; }
+        .input-btn {
+            width: 36px; height: 36px; background: none; border: none; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; font-size: 20px;
+            color: #888; flex-shrink: 0; border-radius: 8px; transition: background 0.15s;
+        }
+        .input-btn:hover { background: rgba(0,0,0,0.05); }
+        .chat-input {
+            flex: 1; background: #fff; border: 1px solid #ddd; border-radius: 18px;
+            padding: 8px 14px; color: #222; font-size: 14px; font-family: inherit; outline: none;
+            transition: border-color 0.2s;
+        }
+        .chat-input::placeholder { color: #aaa; }
+        .chat-input:focus { border-color: #bbb; }
+        .send-btn {
+            width: 36px; height: 36px; background: #ffe834; border: none; border-radius: 8px;
+            color: #3c3c3c; cursor: pointer; display: flex; align-items: center; justify-content: center;
+            transition: all 0.15s; flex-shrink: 0;
+        }
+        .send-btn:hover { background: #ffd900; }
+        .send-btn:active { transform: scale(0.93); }
+
+        /* Typing indicator */
+        .typing-indicator { display: flex; gap: 4px; padding: 4px 0; }
+        .typing-indicator span { width: 5px; height: 5px; background: #999; border-radius: 50%; animation: typing 1.4s infinite; }
+        .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes typing { 0%,60%,100% { transform:translateY(0); opacity:0.3; } 30% { transform:translateY(-5px); opacity:1; } }
+
+        /* Welcome */
+        .welcome-features { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+        .welcome-feature { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: #666; }
+
+        /* No result */
+        .no-result { text-align: center; padding: 8px; }
+        .no-result-icon { font-size: 28px; margin-bottom: 6px; }
+        .no-result-text { color: #888; font-size: 12.5px; line-height: 1.6; }
+
+        .result-count { font-size: 11px; color: #888; margin-bottom: 6px; }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <div class="header-back">←</div>
+            <div class="header-profile">🤖</div>
+            <div class="header-info">
+                <h1>AC 에러코드 도우미</h1>
+                <p><span class="online-dot"></span>온라인</p>
+            </div>
+            <div class="header-actions">
+                <span>🔍</span>
+                <span>☰</span>
+            </div>
+        </div>
+
+        <div class="chat-messages" id="chatMessages"></div>
+
+        <div class="chat-input-area">
+            <div class="input-wrapper">
+                <button class="input-btn" title="더보기">+</button>
+                <input type="text" class="chat-input" id="chatInput" placeholder="에러코드를 입력하세요" autocomplete="off">
+                <button class="send-btn" id="sendBtn" title="전송">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let errorData = [];
+        const chatMessages = document.getElementById('chatMessages');
+        const chatInput = document.getElementById('chatInput');
+        const sendBtn = document.getElementById('sendBtn');
+
+        function getCurrentTime() {
+            const now = new Date();
+            const h = now.getHours();
+            const m = now.getMinutes().toString().padStart(2, '0');
+            const ampm = h >= 12 ? '오후' : '오전';
+            const h12 = h > 12 ? h - 12 : (h === 0 ? 12 : h);
+            return `${ampm} ${h12}:${m}`;
+        }
+
+        async function loadData() {
+            try {
+                const res = await fetch('error-data.json');
+                errorData = await res.json();
+                showWelcome();
+            } catch(e) {
+                console.error('Data load failed:', e);
+                addBotMessage('데이터를 불러오는 데 실패했습니다. 페이지를 새로고침해주세요.');
+            }
+        }
+
+        function addMessage(type, contentHTML, showProfile) {
+            const div = document.createElement('div');
+            div.className = 'message-row ' + type;
+            const time = getCurrentTime();
+
+            if (type === 'bot') {
+                div.innerHTML = `
+                    ${showProfile ? '<div class="msg-profile">🤖</div>' : '<div style="width:40px;flex-shrink:0"></div>'}
+                    <div class="msg-bubble-wrap">
+                        ${showProfile ? '<div class="msg-sender">AC 에러코드 도우미</div>' : ''}
+                        <div class="msg-bubble-row">
+                            <div class="msg-bubble">${contentHTML}</div>
+                            <div class="msg-time">${time}</div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                div.innerHTML = `
+                    <div class="msg-bubble-wrap">
+                        <div class="msg-bubble-row">
+                            <div class="msg-time">${time}</div>
+                            <div class="msg-bubble">${contentHTML}</div>
+                        </div>
+                    </div>
+                `;
+            }
+            chatMessages.appendChild(div);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            return div;
+        }
+
+        function addBotMessage(text, showProfile = true) {
+            return addMessage('bot', text, showProfile);
+        }
+
+        function addUserMessage(text) {
+            return addMessage('user', escapeHtml(text), false);
+        }
+
+        function escapeHtml(text) {
+            const d = document.createElement('div');
+            d.textContent = text;
+            return d.innerHTML;
+        }
+
+        function addDateDivider() {
+            const div = document.createElement('div');
+            div.className = 'date-divider';
+            const now = new Date();
+            const y = now.getFullYear();
+            const m = (now.getMonth() + 1).toString().padStart(2, '0');
+            const d = now.getDate().toString().padStart(2, '0');
+            const days = ['일', '월', '화', '수', '목', '금', '토'];
+            div.innerHTML = `<span>${y}년 ${m}월 ${d}일 ${days[now.getDay()]}요일</span>`;
+            chatMessages.appendChild(div);
+        }
+
+        function showTyping() {
+            const div = document.createElement('div');
+            div.className = 'message-row bot';
+            div.id = 'typing';
+            div.innerHTML = `
+                <div style="width:40px;flex-shrink:0"></div>
+                <div class="msg-bubble-wrap">
+                    <div class="msg-bubble-row">
+                        <div class="msg-bubble">
+                            <div class="typing-indicator"><span></span><span></span><span></span></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            chatMessages.appendChild(div);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function removeTyping() {
+            const t = document.getElementById('typing');
+            if (t) t.remove();
+        }
+
+        function showWelcome() {
+            addDateDivider();
+            const popularCodes = ['E101', 'E464', 'C404', 'E554', 'E121', 'C458'];
+            let tagsHTML = popularCodes.map(c => `<span class="quick-tag" onclick="searchCode('${c}')">${c}</span>`).join('');
+
+            addBotMessage(`
+                안녕하세요! 👋<br>AC 에러코드 도우미입니다.<br><br>
+                에어컨 에러코드를 입력하시면<br>원인과 조치 방법을 안내해 드립니다.<br><br>
+                <div class="welcome-features">
+                    <div class="welcome-feature">🔍 에러코드 검색 (예: E101, C464)</div>
+                    <div class="welcome-feature">📝 키워드 검색 (예: 통신에러, 온도센서)</div>
+                    <div class="welcome-feature">❄️ 총 ${errorData.length}개 에러코드 등록</div>
+                </div>
+                <div class="quick-tags">${tagsHTML}</div>
+            `);
+        }
+
+        function searchCode(query) {
+            chatInput.value = query;
+            handleSend();
+        }
+
+        function searchError(query) {
+            const q = query.toUpperCase().trim();
+            const exact = errorData.filter(e => e['에러코드'] && e['에러코드'].toUpperCase() === q);
+            if (exact.length > 0) return exact;
+            const prefix = errorData.filter(e => e['에러코드'] && e['에러코드'].toUpperCase().startsWith(q));
+            if (prefix.length > 0) return prefix.slice(0, 5);
+            const keyword = errorData.filter(e => {
+                const text = ((e['증상(원문)'] || '') + (e['원인(원문)'] || '') + (e['조치가이드(원문)'] || '')).toUpperCase();
+                return text.includes(q);
+            });
+            if (keyword.length > 0) return keyword.slice(0, 5);
+            return [];
+        }
+
+        function parseGuideSections(guide) {
+            if (!guide) return '';
+            const sections = guide.split(/\[([^\]]+)\]/);
+            let html = '';
+            for (let i = 1; i < sections.length; i += 2) {
+                const title = sections[i];
+                const content = (sections[i + 1] || '').trim();
+                if (!content) continue;
+                const items = content.split(/\n|,/).filter(s => s.trim());
+                const icon = title.includes('부위') ? '🔍' : title.includes('점검') ? '🔎' : '🔧';
+                html += `<div class="error-section"><div class="error-section-title">${icon} ${title}</div><div class="error-section-content"><ul>${items.map(it => `<li>${it.trim()}</li>`).join('')}</ul></div></div>`;
+            }
+            if (!html) {
+                const items = guide.split(',').filter(s => s.trim());
+                html = '<ul>' + items.map(g => `<li>${g.trim()}</li>`).join('') + '</ul>';
+            }
+            return html;
+        }
+
+        function formatResult(item) {
+            const code = item['에러코드'] || '';
+            const symptom = item['증상(원문)'] || '';
+            const cause = item['원인(원문)'] || '';
+            const guide = item['조치가이드(원문)'] || '';
+            const causeItems = cause.split(/<br\s*\/?>/i).filter(s => s.trim());
+            const causeHTML = '<ul>' + causeItems.map(c => `<li>${c.trim()}</li>`).join('') + '</ul>';
+            const guideHTML = parseGuideSections(guide);
+            return `
+                <div class="error-card">
+                    <div class="error-code-badge">${escapeHtml(code)}</div>
+                    ${symptom ? `<div class="error-section"><div class="error-section-title">📋 증상</div><div class="error-section-content">${escapeHtml(symptom)}</div></div>` : ''}
+                    <div class="error-section"><div class="error-section-title">⚠️ 원인</div><div class="error-section-content">${causeHTML}</div></div>
+                    ${guideHTML ? `<div class="error-section-title" style="margin-top:10px;font-size:13px;font-weight:700;color:#3c3c3c;">📝 조치 가이드</div>${guideHTML}` : ''}
+                </div>
+            `;
+        }
+
+        function handleSend() {
+            const query = chatInput.value.trim();
+            if (!query) return;
+            addUserMessage(query);
+            chatInput.value = '';
+            showTyping();
+            setTimeout(() => {
+                removeTyping();
+                const results = searchError(query);
+                if (results.length === 0) {
+                    addBotMessage(`
+                        <div class="no-result">
+                            <div class="no-result-icon">🤔</div>
+                            <div class="no-result-text">
+                                <strong>"${escapeHtml(query)}"</strong>에 대한<br>에러코드를 찾을 수 없습니다.<br><br>
+                                • 에러코드 정확히 입력 (예: E101)<br>
+                                • 키워드로 검색 (예: 통신에러)
+                            </div>
+                        </div>
+                    `, false);
+                } else if (results.length === 1) {
+                    addBotMessage(formatResult(results[0]), false);
+                } else {
+                    let html = `<div class="result-count">🔍 ${results.length}개의 에러코드가 검색되었습니다</div>`;
+                    results.forEach(r => { html += formatResult(r); });
+                    addBotMessage(html, false);
+                }
+            }, 500 + Math.random() * 400);
+        }
+
+        sendBtn.addEventListener('click', handleSend);
+        chatInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+        });
+
+        loadData();
+    </script>
+
+<script>
+if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("service-worker.js");
+}
+</script>
+</body>
+</html>
